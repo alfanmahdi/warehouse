@@ -9,5 +9,5 @@ the main workflow through the public entry point.
 
 **Do not:** commit `.env`; use default passwords; run the API as root.
 
-**Done when:** from a clean checkout `./scripts/init-env.sh && docker compose up --build` serves the UI and
+**Done when:** from a clean checkout `node scripts/init-env.mjs && docker compose up --build` serves the UI and
 `node scripts/e2e-smoke.mjs` passes.

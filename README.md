@@ -37,7 +37,7 @@ Requirements: Docker with Compose v2.
 
 ```bash
 git clone <repo-url> warehouse-receiving && cd warehouse-receiving
-./scripts/init-env.sh          # creates .env with random secrets and prints the demo logins
+node scripts/init-env.mjs      # any OS (or ./scripts/init-env.sh on Linux/macOS): creates .env, prints the demo logins
 docker compose up --build      # db → migrate (one-shot) → api → web
 ```
 
