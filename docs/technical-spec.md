@@ -220,8 +220,8 @@ Transaction isolation is `READ COMMITTED` (default). Correctness comes from expl
 
 ## 8. State transitions
 
-See [`state-diagram.mmd`](state-diagram.mmd) and PRD §6. Implemented as an explicit transition table in `services/receiving.ts`
-(`assertTransition(from, to)`), so illegal transitions are rejected centrally rather than by scattered `if`s.
+See [`state-diagram.mmd`](state-diagram.mmd) and PRD §6. Implemented as an explicit transition table in `services/documentStatus.ts`
+(`isActionAllowed(status, action)`, `isTransitionAllowed(from, to)`, `deriveReceivingStatus(items)`), so illegal transitions are rejected centrally rather than by scattered `if`s. The services call `isActionAllowed` and throw `409 INVALID_STATE`.
 
 | Current status | receipt | complete | cancel |
 |---|---|---|---|
@@ -276,7 +276,7 @@ Detailed results: [`testing.md`](testing.md).
 
 | Level | Scope | Tooling | Must cover |
 |-------|-------|---------|------------|
-| **Unit** | Pure logic: validation schemas, status derivation, transition table, SKU normalisation | Vitest | Every zod schema boundary (0, −1, 2.5, "3", 1,000,001…), `assertTransition` for all 5×3 combinations |
+| **Unit** | Pure logic: validation schemas, status derivation, transition table, SKU normalisation | Vitest | Every zod schema boundary (0, −1, 2.5, "3", 1,000,001…), `isActionAllowed` for all 5×3 status/action combinations and `isTransitionAllowed` for all 5×5 pairs |
 | **Integration (API + real PostgreSQL)** | HTTP → service → SQL | Vitest + Supertest, real DB, migrations applied | Every BR and AC in the PRD: auth/roles, product rules, document creation rules, partial/full receipts, over-receipt, atomicity, idempotency, complete/cancel guards, inventory + ledger correctness, **concurrent receipts**, invariants (`on_hand = Σ ledger`, `received ≤ expected`), ledger immutability |
 | **End-to-end** | Real stack via the public entry point (nginx → api → db) | `scripts/e2e-smoke.mjs` (Node, no extra deps) | Login both roles → create product → create document → partial receipt → over-receipt rejected → full receipt → complete → inventory & history verified |
 | **Manual UI check** | Browser walkthrough | checklist in `testing.md` | Main workflow and error display |
