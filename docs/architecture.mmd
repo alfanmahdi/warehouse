@@ -1,0 +1,17 @@
+%% System architecture — containers and responsibilities
+flowchart TB
+    Browser["<b>Browser</b><br/>React + Vite SPA<br/>UI, client-side convenience validation,<br/>holds JWT in sessionStorage"]
+
+    subgraph Docker["Docker Compose"]
+      Web["<b>web</b> — nginx<br/>serves built SPA,<br/>proxies /api to api,<br/>SPA fallback routing"]
+      Api["<b>api</b> — Node 22 + Express 5 + TypeScript<br/>auth, role guard, validation (zod),<br/>business rules, transactions,<br/>/api/health, /api/health/ready"]
+      Migrate["<b>migrate</b> — one-shot job<br/>applies SQL migrations (advisory lock)<br/>and seeds the demo users"]
+      Db[("<b>db</b> — PostgreSQL 16<br/>constraints, FKs, triggers,<br/>named volume pgdata")]
+    end
+
+    Browser -- "HTTP :8080" --> Web
+    Web -- "/api/* :3000" --> Api
+    Api -- "pg pool, SQL transactions" --> Db
+    Migrate -- "DDL / seed" --> Db
+    Migrate -. "must complete successfully before" .-> Api
+    Db -. "healthy before" .-> Migrate

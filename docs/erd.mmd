@@ -1,0 +1,80 @@
+%% Entity Relationship Diagram — Warehouse Receiving System
+%% Render with any Mermaid viewer (GitHub renders .mmd files / mermaid code blocks).
+erDiagram
+    USERS ||--o{ PRODUCTS : "creates"
+    USERS ||--o{ RECEIVING_DOCUMENTS : "creates / completes / cancels"
+    USERS ||--o{ RECEIPTS : "records"
+    USERS ||--o{ INVENTORY_TRANSACTIONS : "performs"
+    PRODUCTS ||--o| INVENTORY : "has current stock"
+    PRODUCTS ||--o{ RECEIVING_ITEMS : "expected on"
+    PRODUCTS ||--o{ INVENTORY_TRANSACTIONS : "ledger entries"
+    RECEIVING_DOCUMENTS ||--|{ RECEIVING_ITEMS : "contains 1..100"
+    RECEIVING_DOCUMENTS ||--o{ RECEIPTS : "receipts recorded against"
+    RECEIPTS ||--|{ INVENTORY_TRANSACTIONS : "produces one per line"
+    RECEIVING_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "source item"
+
+    USERS {
+        int id PK
+        text username UK "lower-case, 3-50"
+        text full_name
+        text password_hash "bcrypt"
+        text role "OPERATOR | SUPERVISOR"
+        bool is_active
+        timestamptz created_at
+    }
+    PRODUCTS {
+        int id PK
+        text sku UK "upper-case, ^[A-Z0-9][A-Z0-9_-]{1,31}$"
+        text name
+        text description
+        bool is_active
+        int created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    INVENTORY {
+        int product_id PK, FK
+        bigint quantity_on_hand "CHECK >= 0"
+        timestamptz updated_at
+    }
+    RECEIVING_DOCUMENTS {
+        int id PK
+        text document_number UK "RCV-000001 (sequence)"
+        text supplier_name
+        text reference_number
+        date expected_date
+        text notes
+        text status "OPEN | PARTIALLY_RECEIVED | FULLY_RECEIVED | COMPLETED | CANCELLED"
+        int created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+        int completed_by FK
+        timestamptz completed_at
+        int cancelled_by FK
+        timestamptz cancelled_at
+    }
+    RECEIVING_ITEMS {
+        int id PK
+        int document_id FK
+        int product_id FK
+        int expected_quantity "CHECK 1..1000000"
+        int received_quantity "CHECK 0..expected_quantity"
+    }
+    RECEIPTS {
+        int id PK
+        int document_id FK
+        int received_by FK
+        text idempotency_key UK "nullable, <=128"
+        timestamptz created_at
+    }
+    INVENTORY_TRANSACTIONS {
+        bigint id PK
+        int product_id FK
+        text type "RECEIPT"
+        int quantity_change "CHECK <> 0"
+        bigint balance_after "CHECK >= 0"
+        int receipt_id FK
+        int receiving_item_id FK
+        int created_by FK
+        timestamptz created_at "append-only (trigger)"
+    }

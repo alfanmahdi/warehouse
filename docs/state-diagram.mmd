@@ -1,0 +1,13 @@
+%% Receiving document status transitions (PRD §6, BR-07, BR-10, BR-11, BR-12, BR-15)
+stateDiagram-v2
+    [*] --> OPEN : create document (operator / supervisor)
+    OPEN --> PARTIALLY_RECEIVED : receipt, not all items full
+    OPEN --> FULLY_RECEIVED : receipt fills every item
+    PARTIALLY_RECEIVED --> PARTIALLY_RECEIVED : receipt, still not all items full
+    PARTIALLY_RECEIVED --> FULLY_RECEIVED : receipt fills the last open item(s)
+    FULLY_RECEIVED --> COMPLETED : supervisor completes (BR-10)
+    OPEN --> CANCELLED : supervisor cancels (BR-11, nothing received)
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    note right of COMPLETED : Terminal (BR-12)
+    note right of CANCELLED : Terminal (BR-12)

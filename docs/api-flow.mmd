@@ -1,0 +1,49 @@
+%% API flow — POST /api/receiving-documents/{id}/receipts (main receiving workflow)
+sequenceDiagram
+    autonumber
+    actor U as Operator
+    participant FE as React UI
+    participant API as Express (route + service)
+    participant DB as PostgreSQL
+
+    U->>FE: Enter quantities, click "Record receipt"
+    FE->>FE: Client-side checks (1 ≤ qty ≤ remaining), generate Idempotency-Key (UUID), disable button
+    FE->>API: POST /receiving-documents/12/receipts<br/>Authorization: Bearer …, Idempotency-Key: …<br/>{lines:[{itemId,quantity}]}
+    API->>API: Verify JWT → role ∈ {OPERATOR, SUPERVISOR}
+    API->>API: zod: lines 1..100, integers 1..1,000,000, no duplicate itemId
+    API->>DB: BEGIN
+    API->>DB: SELECT … FROM receiving_documents WHERE id=12 FOR UPDATE
+    alt document not found
+        API->>DB: ROLLBACK
+        API-->>FE: 404 NOT_FOUND
+    end
+    opt Idempotency-Key present
+        API->>DB: SELECT receipt WHERE idempotency_key = …
+        alt key exists, same document and same lines
+            API->>DB: ROLLBACK (nothing changed)
+            API-->>FE: 200 original receipt (replay)
+        else key exists, other document or other lines
+            API->>DB: ROLLBACK
+            API-->>FE: 409 IDEMPOTENCY_KEY_REUSED
+        end
+    end
+    alt status ∉ {OPEN, PARTIALLY_RECEIVED}
+        API->>DB: ROLLBACK
+        API-->>FE: 409 INVALID_STATE
+    end
+    API->>DB: SELECT … FROM receiving_items WHERE document_id=12 ORDER BY product_id FOR UPDATE
+    loop each line
+        API->>API: item belongs to document? (else 422 ITEM_NOT_IN_DOCUMENT)
+        API->>API: quantity ≤ expected − received? (else 422 OVER_RECEIPT)
+    end
+    note over API,DB: Any failure above → ROLLBACK, nothing is recorded (BR-08)
+    API->>DB: INSERT receipts (document_id, received_by, idempotency_key)
+    loop each line, ordered by product_id
+        API->>DB: UPDATE receiving_items SET received_quantity += qty
+        API->>DB: INSERT inventory … ON CONFLICT DO UPDATE on_hand += qty RETURNING on_hand
+        API->>DB: INSERT inventory_transactions (qty, balance_after, receipt_id, item_id, user)
+    end
+    API->>DB: UPDATE receiving_documents SET status = FULLY_RECEIVED | PARTIALLY_RECEIVED
+    API->>DB: COMMIT
+    API-->>FE: 201 {receipt, document}
+    FE-->>U: Show updated quantities and status

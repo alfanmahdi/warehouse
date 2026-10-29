@@ -1,0 +1,46 @@
+%% Data flow — how information moves through the system
+flowchart LR
+    subgraph Users
+      OP([Operator])
+      SUP([Supervisor])
+    end
+
+    subgraph Browser["Browser — React SPA"]
+      UI[Pages: Products · Receiving · Inventory · History]
+      TOK[(sessionStorage<br/>JWT)]
+    end
+
+    subgraph Edge["nginx (web container)"]
+      NG[Static files + /api reverse proxy]
+    end
+
+    subgraph API["Express API (api container)"]
+      MW[Request log → JWT auth → role guard → zod validation]
+      SVC[Services<br/>products · receiving · inventory]
+    end
+
+    subgraph DB["PostgreSQL"]
+      T1[(users)]
+      T2[(products)]
+      T3[(receiving_documents<br/>receiving_items)]
+      T4[(receipts)]
+      T5[(inventory)]
+      T6[(inventory_transactions<br/>append-only ledger)]
+    end
+
+    OP --> UI
+    SUP --> UI
+    UI <-->|token| TOK
+    UI -->|"HTTPS JSON + Bearer token"| NG
+    NG -->|proxy_pass| MW
+    MW --> SVC
+    SVC -->|"login: verify bcrypt hash"| T1
+    SVC -->|"CRUD (supervisor)"| T2
+    SVC -->|"create document + items (OPEN)"| T3
+    SVC -->|"receipt: lock doc+items, increase received_quantity"| T3
+    SVC -->|"receipt: one row per submission (+ idempotency key)"| T4
+    SVC -->|"receipt: upsert on_hand += qty"| T5
+    SVC -->|"receipt: append row per line (qty, balance_after)"| T6
+    T5 -->|"read stock"| SVC
+    T6 -->|"read history"| SVC
+    SVC -->|"JSON response / error envelope"| UI
