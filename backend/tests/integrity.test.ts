@@ -6,7 +6,7 @@ import { createPool } from '../src/db.js';
 import { DEFAULT_MIGRATIONS_DIR, runMigrations } from '../src/migrate.js';
 import { seedUsers } from '../src/seed.js';
 import { TEST_DATABASE_URL } from './globalSetup.js';
-import { PASSWORD, app, createDocument, driftedProducts, overReceivedItems, pool, receive, request, tokenFor } from './helpers.js';
+import { PASSWORD, app, createDocument, driftedProducts, ledgerRows, onHand, overReceivedItems, pool, receive, request, tokenFor } from './helpers.js';
 
 afterAll(async () => {
   await pool.end();
@@ -257,5 +257,39 @@ describe('seeding (technical-spec §4.3)', () => {
     const { rows } = await isolated.query("SELECT role FROM users WHERE username = 'operator'");
     expect(rows[0].role).toBe('OPERATOR');
     await isolated.end();
+  });
+});
+
+describe('rollback on a failure in the MIDDLE of a receipt (BR-08)', () => {
+  it('if the DB fails while writing line 2, line 1 (item, inventory, ledger, receipt) is rolled back too', async () => {
+    const { doc, products } = await createDocument([5, 5]);
+    const [first, second] = products as [(typeof products)[0], (typeof products)[0]];
+    // Lines are applied in ascending product_id order, so line 1 = first product, line 2 = second product.
+    expect(first.id).toBeLessThan(second.id);
+
+    await pool.query(`CREATE OR REPLACE FUNCTION fail_for_probe() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'simulated failure'; END; $$ LANGUAGE plpgsql`);
+    await pool.query(
+      `CREATE TRIGGER fail_probe BEFORE INSERT ON inventory_transactions
+         FOR EACH ROW WHEN (NEW.product_id = ${second.id}) EXECUTE FUNCTION fail_for_probe()`,
+    );
+    try {
+      const res = await receive(doc.id, doc.items.map((i) => ({ itemId: i.id, quantity: 2 })));
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('INTERNAL_ERROR');
+      expect(JSON.stringify(res.body)).not.toContain('simulated');
+    } finally {
+      await pool.query('DROP TRIGGER fail_probe ON inventory_transactions');
+      await pool.query('DROP FUNCTION fail_for_probe()');
+    }
+
+    const after = await pool.query('SELECT status FROM receiving_documents WHERE id = $1', [doc.id]);
+    expect(after.rows[0].status).toBe('OPEN');
+    const items = await pool.query('SELECT received_quantity FROM receiving_items WHERE document_id = $1', [doc.id]);
+    expect(items.rows.map((r) => r.received_quantity)).toEqual([0, 0]);
+    expect(await onHand(first.id)).toBe(0);
+    expect(await ledgerRows(first.id)).toHaveLength(0);
+    expect((await pool.query('SELECT 1 FROM receipts WHERE document_id = $1', [doc.id])).rowCount).toBe(0);
+    expect(await driftedProducts()).toEqual([]);
   });
 });
