@@ -6,10 +6,6 @@
 | Status | Approved for implementation |
 | Audience | Developers and AI coding agents implementing the system |
 
-> This PRD is the source of truth for **what** the system does. The technical specification
-> (`technical-spec.md`) is derived from it and describes **how**. Every business rule has an ID
-> (`BR-xx`) that is referenced by the API contract, the code and the tests.
-
 ---
 
 ## 1. Problem statement and business objectives

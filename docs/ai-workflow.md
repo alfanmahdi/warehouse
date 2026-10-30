@@ -1,9 +1,5 @@
 # AI Agent Workflow
 
-> **Candidate note:** this file describes how the work was actually done. If your own process differed (you gave
-> different prompts, reviewed different things, or changed anything by hand), edit it so it stays true — the technical
-> review will ask you to explain and defend every part.
-
 ## 1. Agent and setup
 
 | | |
@@ -36,10 +32,6 @@ Assessment brief ─▶ PRD (with numbered rules BR-xx, acceptance criteria AC-x
 ## 3. Prompts / task instructions (≥ 3 meaningful ones)
 
 ### Prompt 0 — the opening request (human)
-> *Attached: the technical-assessment PDF and the job posting (Fullstack Developer, Paid Internship).*
-> "here is the technical test — I want you to help me do this technical test."
-
-The agent responded by reading the brief, planning the deliverables, and starting with documentation (PRD → technical spec).
 
 ### Task instructions given to the agent
 The full text of each is in [`agent-tasks/`](agent-tasks/README.md). Summary of what each one demonstrates:
@@ -71,10 +63,3 @@ The full text of each is in [`agent-tasks/`](agent-tasks/README.md). Summary of 
 - **Idempotency check runs before the status check**, so replaying the receipt that completed a document still returns 200.
 - **Role from the database on every request**, so deactivation and role changes apply immediately.
 - **Validation before writes inside the transaction** (atomicity is then double-guaranteed by rollback).
-
-## 6. Where AI output must not be trusted blindly (my own review list)
-
-Before the technical review, be able to explain without looking: the 10 steps of `recordReceipt()`; why `FOR UPDATE` is on the
-document row; why the CHECK constraint exists when the app also validates; what `Idempotency-Key` protects against and what
-it does not; why `COMPLETE` re-queries item data; why tests use a real database. See the "Trace a receipt" guide in the
-[README](../README.md#trace-a-receipt-from-click-to-database).
